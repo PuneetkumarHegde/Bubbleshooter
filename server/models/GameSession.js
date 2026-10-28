@@ -72,3 +72,4 @@ const gameSessionSchema = new mongoose.Schema({
 
 export const GameSession = mongoose.model('GameSession', gameSessionSchema);
 export default GameSession;
+

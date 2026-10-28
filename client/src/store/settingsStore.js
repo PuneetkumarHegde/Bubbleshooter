@@ -37,3 +37,4 @@ export const useSettingsStore = create((set, get) => ({
     set({ reducedMotion: next });
   },
 }));
+

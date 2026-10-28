@@ -22,3 +22,4 @@ export async function authenticateToken(req, res, next) {
     return res.status(401).json({ success: false, message: 'Session expired or token invalid.' });
   }
 }
+

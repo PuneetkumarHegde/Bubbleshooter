@@ -8,3 +8,4 @@ router.get('/', getAchievements);
 router.get('/me', authenticateToken, getMyAchievements);
 
 export default router;
+

@@ -1,4 +1,4 @@
-// Phaser 3 Bubble Shooter Game Engine
+// High-Polish Phaser 3 Bubble Shooter Game Engine
 import Phaser from 'phaser';
 import { GAME_CONSTANTS } from '../config/gameConfig';
 import { HexGrid } from './collision';
@@ -23,14 +23,15 @@ export class BubbleShooterScene extends Phaser.Scene {
 
     this.createProceduralTextures();
 
-    // Scene groups and containers
-    this.bubbleSprites = new Map(); // key "r,c" -> Phaser.GameObjects.Sprite
+    // Scene groups and layers
+    this.bubbleSprites = new Map(); // "r,c" -> Phaser.GameObjects.Sprite
     this.trajectoryGraphics = this.add.graphics().setDepth(5);
-    this.effectsContainer = this.add.container(0, 0).setDepth(20);
+    this.targetMarker = this.add.graphics().setDepth(6);
+    this.effectsContainer = this.add.container(0, 0).setDepth(25);
 
     // Launcher setup
     this.launcherX = this.canvasWidth / 2;
-    this.launcherY = this.canvasHeight - 65;
+    this.launcherY = this.canvasHeight - 68;
     this.aimAngle = -Math.PI / 2;
     this.isAiming = false;
     this.movingBubble = null;
@@ -42,7 +43,7 @@ export class BubbleShooterScene extends Phaser.Scene {
     const store = useGameStore.getState();
     this.initLevel(store.level);
 
-    // Subscribe to store updates (boosters, restart, etc.)
+    // Subscribe to store updates
     this.unsubscribeStore = useGameStore.subscribe((state, prevState) => {
       if (state.gameStatus === GAME_STATUS.READY && prevState.gameStatus === GAME_STATUS.LOADING) {
         this.initLevel(state.level);
@@ -50,82 +51,101 @@ export class BubbleShooterScene extends Phaser.Scene {
       if (state.currentBubble !== prevState.currentBubble) {
         this.updateCurrentBubbleSprite();
       }
+      if (state.shotsRemaining <= 4 && prevState.shotsRemaining > 4) {
+        this.setCompanionReaction('nervous');
+      }
     });
   }
 
-  // Generates high-gloss, cartoonish vector bubble textures in memory
+  // Generates 3D glossy spheres with embossed colorblind-accessible symbols
   createProceduralTextures() {
-    const colors = {
-      red: '#ef4444',
-      blue: '#3b82f6',
-      green: '#10b981',
-      yellow: '#f59e0b',
-      purple: '#8b5cf6',
-      orange: '#f97316',
-      pink: '#ec4899',
-      cyan: '#06b6d4',
+    const bubbleSpecs = {
+      red:    { hex: '#ef4444', dark: '#991b1b', light: '#fca5a5', sym: '❤️' },
+      blue:   { hex: '#3b82f6', dark: '#1e40af', light: '#93c5fd', sym: '💧' },
+      green:  { hex: '#10b981', dark: '#065f46', light: '#6ee7b7', sym: '🍀' },
+      yellow: { hex: '#f59e0b', dark: '#92400e', light: '#fde68a', sym: '⭐' },
+      purple: { hex: '#8b5cf6', dark: '#5b21b6', light: '#c4b5fd', sym: '🌙' },
+      orange: { hex: '#f97316', dark: '#9a3412', light: '#fdba74', sym: '☀️' },
+      pink:   { hex: '#ec4899', dark: '#9d174d', light: '#fbcfe8', sym: '💎' },
+      cyan:   { hex: '#06b6d4', dark: '#155e75', light: '#a5f3fc', sym: '❄️' },
     };
 
     const r = GAME_CONSTANTS.BUBBLE_RADIUS;
     const d = r * 2;
 
-    // Normal color bubbles
-    Object.entries(colors).forEach(([name, hex]) => {
+    Object.entries(bubbleSpecs).forEach(([name, spec]) => {
       if (this.textures.exists(`bubble_${name}`)) return;
       const canvas = document.createElement('canvas');
       canvas.width = d;
       canvas.height = d;
       const ctx = canvas.getContext('2d');
 
-      // Base radial shading
-      const grad = ctx.createRadialGradient(r * 0.7, r * 0.7, r * 0.1, r, r, r);
+      // 1. Base 3D Sphere Shading
+      const grad = ctx.createRadialGradient(r * 0.7, r * 0.65, r * 0.1, r, r, r);
       grad.addColorStop(0, '#ffffff');
-      grad.addColorStop(0.3, hex);
-      grad.addColorStop(0.85, hex);
-      grad.addColorStop(1, '#0f172a');
+      grad.addColorStop(0.2, spec.light);
+      grad.addColorStop(0.65, spec.hex);
+      grad.addColorStop(0.95, spec.dark);
+      grad.addColorStop(1, '#090d16');
 
       ctx.beginPath();
       ctx.arc(r, r, r - 2, 0, Math.PI * 2);
       ctx.fillStyle = grad;
       ctx.fill();
 
-      // Outer glassy rim
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+      // 2. Embossed Interior Icon Symbol
+      ctx.font = '13px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+      ctx.fillText(spec.sym, r, r + 2);
+
+      // 3. Crisp Glass Rim
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
       ctx.stroke();
 
-      // Glossy shine reflection
+      // 4. Glossy Specular Light Reflection
       ctx.beginPath();
-      ctx.ellipse(r * 0.65, r * 0.55, r * 0.35, r * 0.2, -Math.PI / 4, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+      ctx.ellipse(r * 0.65, r * 0.52, r * 0.34, r * 0.18, -Math.PI / 4, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+      ctx.fill();
+
+      // 5. Lower Ambient Bounce Light
+      ctx.beginPath();
+      ctx.arc(r, r * 1.35, r * 0.4, 0, Math.PI);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
       ctx.fill();
 
       this.textures.addCanvas(`bubble_${name}`, canvas);
     });
 
-    // Bomb Bubble Texture
+    // Bomb Texture with glowing hazardous aura
     if (!this.textures.exists('bubble_bomb')) {
       const canvas = document.createElement('canvas');
       canvas.width = d;
       canvas.height = d;
       const ctx = canvas.getContext('2d');
-      const grad = ctx.createRadialGradient(r * 0.7, r * 0.7, r * 0.1, r, r, r);
-      grad.addColorStop(0, '#fca5a5');
-      grad.addColorStop(0.5, '#dc2626');
-      grad.addColorStop(1, '#450a0a');
+      const grad = ctx.createRadialGradient(r * 0.7, r * 0.65, r * 0.1, r, r, r);
+      grad.addColorStop(0, '#fed7aa');
+      grad.addColorStop(0.3, '#f97316');
+      grad.addColorStop(0.7, '#dc2626');
+      grad.addColorStop(1, '#262626');
       ctx.beginPath();
       ctx.arc(r, r, r - 2, 0, Math.PI * 2);
       ctx.fillStyle = grad;
       ctx.fill();
-      // Draw fuse spark
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#fef08a';
+      ctx.stroke();
       ctx.font = '20px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('💣', r, r);
+      ctx.fillText('💣', r, r + 1);
       this.textures.addCanvas('bubble_bomb', canvas);
     }
 
-    // Rainbow Bubble Texture
+    // Rainbow Wildcard Texture with prismatic gradient
     if (!this.textures.exists('bubble_rainbow')) {
       const canvas = document.createElement('canvas');
       canvas.width = d;
@@ -142,31 +162,38 @@ export class BubbleShooterScene extends Phaser.Scene {
       ctx.arc(r, r, r - 2, 0, Math.PI * 2);
       ctx.fillStyle = grad;
       ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+      ctx.stroke();
       ctx.font = '20px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('🌈', r, r);
+      ctx.fillText('🌈', r, r + 1);
       this.textures.addCanvas('bubble_rainbow', canvas);
     }
 
-    // Rescue Star Sprite Bubble
+    // Rescue Star Sprite Creature inside a crystalline bubble
     if (!this.textures.exists('bubble_rescue')) {
       const canvas = document.createElement('canvas');
       canvas.width = d;
       canvas.height = d;
       const ctx = canvas.getContext('2d');
       const grad = ctx.createRadialGradient(r * 0.7, r * 0.7, r * 0.1, r, r, r);
-      grad.addColorStop(0, '#fef08a');
+      grad.addColorStop(0, '#fef9c3');
       grad.addColorStop(0.4, '#eab308');
-      grad.addColorStop(1, '#713f12');
+      grad.addColorStop(0.9, '#a16207');
+      grad.addColorStop(1, '#422006');
       ctx.beginPath();
       ctx.arc(r, r, r - 2, 0, Math.PI * 2);
       ctx.fillStyle = grad;
       ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#fef08a';
+      ctx.stroke();
       ctx.font = '22px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('⭐', r, r);
+      ctx.fillText('⭐', r, r + 1);
       this.textures.addCanvas('bubble_rescue', canvas);
     }
 
@@ -178,60 +205,124 @@ export class BubbleShooterScene extends Phaser.Scene {
       const ctx = canvas.getContext('2d');
       const grad = ctx.createRadialGradient(r * 0.7, r * 0.7, r * 0.1, r, r, r);
       grad.addColorStop(0, '#f5d0fe');
-      grad.addColorStop(0.4, '#c084fc');
-      grad.addColorStop(1, '#581c87');
+      grad.addColorStop(0.5, '#c084fc');
+      grad.addColorStop(1, '#4c1d95');
       ctx.beginPath();
       ctx.arc(r, r, r - 2, 0, Math.PI * 2);
       ctx.fillStyle = grad;
       ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#e9d5ff';
+      ctx.stroke();
       ctx.font = '20px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('🎯', r, r);
+      ctx.fillText('🎯', r, r + 1);
       this.textures.addCanvas('bubble_target', canvas);
-    }
-
-    // Trajectory dot particle
-    if (!this.textures.exists('dot_particle')) {
-      const canvas = document.createElement('canvas');
-      canvas.width = 12;
-      canvas.height = 12;
-      const ctx = canvas.getContext('2d');
-      ctx.beginPath();
-      ctx.arc(6, 6, 5, 0, Math.PI * 2);
-      ctx.fillStyle = '#ffffff';
-      ctx.fill();
-      this.textures.addCanvas('dot_particle', canvas);
     }
   }
 
   createLauncher() {
-    // Pedestal base
-    this.launcherBase = this.add.circle(this.launcherX, this.launcherY + 22, 38, 0x1e293b).setDepth(8);
-    this.launcherBase.setStrokeStyle(3, 0x6366f1);
+    // Glowing launcher pedestal
+    this.launcherRing = this.add.circle(this.launcherX, this.launcherY + 20, 42, 0x1e1b4b, 0.8).setDepth(7);
+    this.launcherRing.setStrokeStyle(3, 0x6366f1, 0.9);
 
-    // Aim guide cannon arrow
-    this.launcherArrow = this.add.triangle(this.launcherX, this.launcherY, 0, 18, 12, -26, 24, 18, 0x818cf8).setDepth(9);
-    this.launcherArrow.setOrigin(0.5, 0.7);
+    this.launcherBase = this.add.circle(this.launcherX, this.launcherY + 20, 36, 0x0f172a).setDepth(8);
+    this.launcherBase.setStrokeStyle(2, 0x818cf8);
 
-    // Current bubble in launcher
+    // Aim cannon barrel
+    this.launcherArrow = this.add.triangle(this.launcherX, this.launcherY, 0, 20, 13, -30, 26, 20, 0x6366f1).setDepth(9);
+    this.launcherArrow.setOrigin(0.5, 0.72);
+    this.launcherArrow.setStrokeStyle(2, 0xa5b4fc);
+
+    // Loaded bubble in launcher
     this.currentBubbleSprite = this.add.sprite(this.launcherX, this.launcherY, 'bubble_blue').setDepth(10);
     this.currentBubbleSprite.setScale(1.05);
 
-    // Helper Character Avatar in bottom left
-    this.helperCharacter = this.add.text(48, this.canvasHeight - 48, '🐲', {
-      fontSize: '42px',
-    }).setOrigin(0.5).setDepth(10);
+    // Helper Character Avatar (Sparky the Bubble Drake)
+    this.sparkyContainer = this.add.container(48, this.canvasHeight - 48).setDepth(12);
+    this.sparkyEmoji = this.add.text(0, 0, '🐲', { fontSize: '42px' }).setOrigin(0.5);
+    this.sparkySpeech = this.add.text(0, -32, '', {
+      fontSize: '11px',
+      fontFamily: 'Fredoka, sans-serif',
+      fontStyle: 'bold',
+      color: '#fbbf24',
+      backgroundColor: '#0f172a',
+      padding: { x: 6, y: 3 },
+    }).setOrigin(0.5).setAlpha(0);
 
-    // Gentle breathing tween for character
+    this.sparkyContainer.add([this.sparkyEmoji, this.sparkySpeech]);
+
+    // Idle breathing tween
     this.tweens.add({
-      targets: this.helperCharacter,
-      scaleX: 1.15,
-      scaleY: 0.9,
-      duration: 900,
+      targets: this.sparkyEmoji,
+      scaleX: 1.12,
+      scaleY: 0.92,
+      duration: 850,
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut',
+    });
+  }
+
+  setCompanionReaction(type, customText = '') {
+    if (!this.sparkyEmoji) return;
+
+    if (type === 'happy') {
+      this.sparkyEmoji.setText('😍');
+      this.showCompanionSpeech(customText || 'Awesome shot!');
+      this.tweens.add({
+        targets: this.sparkyContainer,
+        y: this.canvasHeight - 65,
+        duration: 180,
+        yoyo: true,
+        ease: 'Back.easeOut',
+        onComplete: () => this.sparkyEmoji.setText('🐲'),
+      });
+    } else if (type === 'fire') {
+      this.sparkyEmoji.setText('🔥');
+      this.showCompanionSpeech('MEGA COMBO!');
+      this.tweens.add({
+        targets: this.sparkyContainer,
+        scale: 1.25,
+        duration: 250,
+        yoyo: true,
+        ease: 'Elastic.easeOut',
+        onComplete: () => this.sparkyEmoji.setText('🐲'),
+      });
+    } else if (type === 'rescue') {
+      this.sparkyEmoji.setText('🎉');
+      this.showCompanionSpeech('Sprite Saved! ⭐');
+      this.tweens.add({
+        targets: this.sparkyContainer,
+        y: this.canvasHeight - 75,
+        duration: 300,
+        yoyo: true,
+        ease: 'Bounce.easeOut',
+        onComplete: () => this.sparkyEmoji.setText('🐲'),
+      });
+    } else if (type === 'nervous') {
+      this.sparkyEmoji.setText('😰');
+      this.showCompanionSpeech('Careful! Low shots!');
+      setTimeout(() => {
+        if (this.sparkyEmoji) this.sparkyEmoji.setText('🐲');
+      }, 2500);
+    }
+  }
+
+  showCompanionSpeech(text) {
+    if (!this.sparkySpeech) return;
+    this.sparkySpeech.setText(text);
+    this.sparkySpeech.setAlpha(1);
+    this.tweens.add({
+      targets: this.sparkySpeech,
+      alpha: 0,
+      y: -42,
+      delay: 1200,
+      duration: 400,
+      onComplete: () => {
+        this.sparkySpeech.setY(-32);
+      },
     });
   }
 
@@ -268,12 +359,11 @@ export class BubbleShooterScene extends Phaser.Scene {
     else if (cell.isTarget) textureKey = 'bubble_target';
 
     const sprite = this.add.sprite(x, y, textureKey).setDepth(2);
-    // Pop-in entry animation
     sprite.setScale(0);
     this.tweens.add({
       targets: sprite,
       scale: 1,
-      duration: 250 + r * 25,
+      duration: 220 + r * 22,
       ease: 'Back.easeOut',
     });
 
@@ -320,34 +410,53 @@ export class BubbleShooterScene extends Phaser.Scene {
     this.input.on('pointerup', (pointer) => {
       const store = useGameStore.getState();
       if (store.gameStatus === GAME_STATUS.AIMING || store.gameStatus === GAME_STATUS.READY) {
-        // Fire bubble if pointer is inside upper play area
         if (pointer.y < this.canvasHeight - 100) {
           this.shootBubble();
         }
       }
     });
 
-    // Space key to swap bubbles
+    // Keyboard Shortcuts
     this.input.keyboard.on('keydown-SPACE', () => {
       useGameStore.getState().swapBubbles();
       soundManager.playAim();
     });
 
-    // R key to restart level
+    this.input.keyboard.on('keydown-U', () => {
+      useGameStore.getState().undoShot();
+      soundManager.playClick();
+    });
+
+    this.input.keyboard.on('keydown-Z', () => {
+      useGameStore.getState().undoShot();
+      soundManager.playClick();
+    });
+
+    this.input.keyboard.on('keydown-H', () => {
+      useGameStore.getState().triggerHint();
+      soundManager.playClick();
+    });
+
     this.input.keyboard.on('keydown-R', () => {
       const store = useGameStore.getState();
       if (store.level) store.setLevel(store.level);
     });
+
+    // Numerical Booster Shortcuts (1: Bomb, 2: Rainbow, 3: Aim, 4: Extra, 5: Shuffle)
+    this.input.keyboard.on('keydown-ONE', () => useGameStore.getState().activateBooster('bomb'));
+    this.input.keyboard.on('keydown-TWO', () => useGameStore.getState().activateBooster('rainbow'));
+    this.input.keyboard.on('keydown-THREE', () => useGameStore.getState().activateBooster('aimGuide'));
+    this.input.keyboard.on('keydown-FOUR', () => useGameStore.getState().activateBooster('extraShot'));
+    this.input.keyboard.on('keydown-FIVE', () => useGameStore.getState().activateBooster('shuffle'));
   }
 
   handleAim(targetX, targetY) {
     const dx = targetX - this.launcherX;
     const dy = targetY - this.launcherY;
 
-    // Constrain angle so player cannot shoot downwards
     let angle = Math.atan2(dy, dx);
-    const minAngle = -Math.PI + 0.18; // approx 170 deg
-    const maxAngle = -0.18; // approx 10 deg
+    const minAngle = -Math.PI + 0.16;
+    const maxAngle = -0.16;
 
     if (angle > 0) {
       angle = dx < 0 ? minAngle : maxAngle;
@@ -364,6 +473,8 @@ export class BubbleShooterScene extends Phaser.Scene {
 
   drawTrajectory() {
     this.trajectoryGraphics.clear();
+    this.targetMarker.clear();
+
     const store = useGameStore.getState();
     const hasAimGuide = store.activeBooster === 'aimGuide';
 
@@ -373,11 +484,9 @@ export class BubbleShooterScene extends Phaser.Scene {
     let vy = Math.sin(this.aimAngle);
 
     const step = 14;
-    const maxSteps = hasAimGuide ? 75 : 32;
+    const maxSteps = hasAimGuide ? 75 : 34;
     const radius = GAME_CONSTANTS.BUBBLE_RADIUS;
     const board = store.board;
-
-    this.trajectoryGraphics.fillStyle(0xffffff, 0.7);
 
     for (let i = 0; i < maxSteps; i++) {
       currentX += vx * step;
@@ -395,15 +504,17 @@ export class BubbleShooterScene extends Phaser.Scene {
       // Check collision with board
       const colCheck = this.hexGrid.checkCollision(currentX, currentY, board);
       if (colCheck.hit || currentY <= this.hexGrid.offsetY) {
-        // Draw impact ring target
-        this.trajectoryGraphics.lineStyle(2, 0xf59e0b, 0.9);
-        this.trajectoryGraphics.strokeCircle(currentX, currentY, radius);
+        // Draw rotating landing target indicator
+        this.targetMarker.lineStyle(2.5, 0xf59e0b, 0.95);
+        this.targetMarker.strokeCircle(currentX, currentY, radius);
+        this.targetMarker.fillStyle(0xf59e0b, 0.2);
+        this.targetMarker.fillCircle(currentX, currentY, radius * 0.4);
         break;
       }
 
       // Draw dashed trajectory dot
       if (i % 2 === 0) {
-        const alpha = 1.0 - (i / maxSteps) * 0.7;
+        const alpha = Math.max(0.15, 1.0 - (i / maxSteps) * 0.7);
         this.trajectoryGraphics.fillStyle(0xffffff, alpha);
         this.trajectoryGraphics.fillCircle(currentX, currentY, 3.5);
       }
@@ -415,13 +526,11 @@ export class BubbleShooterScene extends Phaser.Scene {
     if (store.gameStatus !== GAME_STATUS.READY && store.gameStatus !== GAME_STATUS.AIMING) return;
     if (store.shotsRemaining <= 0) return;
 
-    // Save snapshot for Undo
     store.saveHistorySnapshot();
-
-    // Prevent double shooting by transitioning state
     store.setGameStatus(GAME_STATUS.SHOOTING);
     store.decrementShots();
     this.trajectoryGraphics.clear();
+    this.targetMarker.clear();
 
     const current = store.currentBubble;
     let textureKey = `bubble_${current.color}`;
@@ -440,16 +549,16 @@ export class BubbleShooterScene extends Phaser.Scene {
 
     soundManager.playLaunch();
 
-    // Launcher recoil animation
+    // Launcher spring recoil
     this.tweens.add({
       targets: this.launcherBase,
       scale: 0.88,
-      duration: 80,
+      duration: 75,
       yoyo: true,
       ease: 'Quad.easeInOut',
     });
 
-    // Advance bubble queue in store
+    // Advance queue
     const colors = store.level.colors || ['red', 'blue', 'green'];
     const nextGenerated = colors[Math.floor(Math.random() * colors.length)];
     useGameStore.setState({
@@ -483,7 +592,6 @@ export class BubbleShooterScene extends Phaser.Scene {
 
     mb.sprite.setPosition(mb.x, mb.y);
 
-    // Collision checks
     const store = useGameStore.getState();
     const board = store.board;
     const colCheck = this.hexGrid.checkCollision(mb.x, mb.y, board);
@@ -502,7 +610,6 @@ export class BubbleShooterScene extends Phaser.Scene {
     const slot = this.hexGrid.findSnapPosition(mb.x, mb.y, store.board);
     mb.sprite.destroy();
 
-    // Add to board array
     const board = store.board;
     if (!board[slot.row]) board[slot.row] = [];
     board[slot.row][slot.col] = {
@@ -515,18 +622,17 @@ export class BubbleShooterScene extends Phaser.Scene {
       isPopped: false,
     };
 
-    // Create visual bubble sprite at snapped slot
     const sprite = this.createBubbleSprite(slot.row, slot.col, board[slot.row][slot.col]);
     soundManager.playCollision();
 
-    // Bounce impact ripple animation
+    // Elastic snap impact tween
     this.tweens.add({
       targets: sprite,
       scaleX: 1.25,
-      scaleY: 0.85,
+      scaleY: 0.82,
       duration: 80,
       yoyo: true,
-      ease: 'Quad.easeInOut',
+      ease: 'Back.easeOut',
       onComplete: () => {
         this.processMatchesAndFalls(slot.row, slot.col, mb.special);
       },
@@ -537,7 +643,7 @@ export class BubbleShooterScene extends Phaser.Scene {
     const store = useGameStore.getState();
     const board = store.board;
 
-    const { matches, isBomb, isRainbow } = this.matchDetector.findMatches(row, col, board, specialType);
+    const { matches, isBomb } = this.matchDetector.findMatches(row, col, board, specialType);
     let poppedCount = 0;
     let rescuedCount = 0;
 
@@ -548,10 +654,15 @@ export class BubbleShooterScene extends Phaser.Scene {
 
       if (isBomb) {
         soundManager.playBomb();
+        this.cameras.main.shake(140, 0.007);
         this.createExplosionEffect(row, col);
       } else {
-        soundManager.playMultiPop(poppedCount);
-        if (currentCombo >= 2) soundManager.playCombo(currentCombo);
+        const colorKey = matches[0]?.bubble?.color || 'blue';
+        soundManager.playMultiPop(poppedCount, colorKey);
+        if (currentCombo >= 2) {
+          soundManager.playCombo(currentCombo);
+          this.setCompanionReaction(currentCombo >= 4 ? 'fire' : 'happy');
+        }
       }
 
       // Pop matched bubbles
@@ -569,7 +680,7 @@ export class BubbleShooterScene extends Phaser.Scene {
         }
       });
 
-      // Detect floating bubbles
+      // Detect floating disconnected bubbles
       const floating = this.floatingDetector.findFloatingBubbles(board);
       if (floating.length > 0) {
         soundManager.playFloatingFall();
@@ -600,6 +711,7 @@ export class BubbleShooterScene extends Phaser.Scene {
 
       if (rescuedCount > 0) {
         soundManager.playRescue();
+        this.setCompanionReaction('rescue');
         this.showRescueCelebration();
       }
     } else {
@@ -621,28 +733,30 @@ export class BubbleShooterScene extends Phaser.Scene {
     });
   }
 
-  animatePop(sprite, colorHex, r, c) {
+  animatePop(sprite, colorKey, r, c) {
     this.tweens.add({
       targets: sprite,
-      scale: 1.35,
+      scale: 1.4,
       alpha: 0,
-      duration: 180,
+      duration: 160,
       ease: 'Back.easeIn',
       onComplete: () => sprite.destroy(),
     });
 
-    // Particle burst
-    for (let i = 0; i < 6; i++) {
-      const p = this.add.circle(sprite.x, sprite.y, 4, 0xffffff).setDepth(25);
-      const angle = (Math.PI * 2 / 6) * i + Math.random() * 0.4;
-      const dist = 30 + Math.random() * 20;
+    // Multi-color particle spark burst
+    const particleColors = [0xffffff, 0xfde047, 0xf472b6, 0x60a5fa, 0x4ade80];
+    for (let i = 0; i < 7; i++) {
+      const pColor = particleColors[i % particleColors.length];
+      const p = this.add.circle(sprite.x, sprite.y, 4, pColor).setDepth(25);
+      const angle = (Math.PI * 2 / 7) * i + Math.random() * 0.3;
+      const dist = 32 + Math.random() * 22;
       this.tweens.add({
         targets: p,
         x: sprite.x + Math.cos(angle) * dist,
         y: sprite.y + Math.sin(angle) * dist,
         alpha: 0,
-        scale: 0.2,
-        duration: 350,
+        scale: 0.15,
+        duration: 360,
         ease: 'Quad.easeOut',
         onComplete: () => p.destroy(),
       });
@@ -652,11 +766,11 @@ export class BubbleShooterScene extends Phaser.Scene {
   animateFall(sprite, delay) {
     this.tweens.add({
       targets: sprite,
-      y: this.canvasHeight + 50,
-      rotation: Math.PI + Math.random() * 2,
-      alpha: 0.6,
+      y: this.canvasHeight + 60,
+      rotation: Math.PI * 1.5 + Math.random() * 2,
+      alpha: 0.5,
       delay,
-      duration: 550,
+      duration: 520,
       ease: 'Cubic.easeIn',
       onComplete: () => sprite.destroy(),
     });
@@ -664,45 +778,64 @@ export class BubbleShooterScene extends Phaser.Scene {
 
   createExplosionEffect(r, c) {
     const { x, y } = this.hexGrid.gridToPixel(r, c);
-    const shockwave = this.add.circle(x, y, 10, 0xf97316, 0.8).setDepth(26);
+    const shockwave = this.add.circle(x, y, 10, 0xf97316, 0.85).setDepth(26);
     this.tweens.add({
       targets: shockwave,
-      radius: 90,
+      radius: 95,
       alpha: 0,
       duration: 320,
       ease: 'Quad.easeOut',
       onComplete: () => shockwave.destroy(),
     });
+
+    // Fire sparks
+    for (let i = 0; i < 12; i++) {
+      const spark = this.add.circle(x, y, 5, 0xfef08a).setDepth(27);
+      const ang = Math.random() * Math.PI * 2;
+      const dist = 40 + Math.random() * 50;
+      this.tweens.add({
+        targets: spark,
+        x: x + Math.cos(ang) * dist,
+        y: y + Math.sin(ang) * dist,
+        alpha: 0,
+        duration: 380,
+        ease: 'Quad.easeOut',
+        onComplete: () => spark.destroy(),
+      });
+    }
   }
 
   showScoreFloater(x, y, text, combo) {
-    const color = combo >= 3 ? '#fbbf24' : '#ffffff';
-    const msg = combo >= 2 ? `${text} (x${combo})` : text;
+    const praises = ['NICE!', 'GREAT!', 'AWESOME!', 'SUPER!', 'POPTASTIC!'];
+    const praiseText = praises[Math.min(combo - 1, praises.length - 1)] || '';
+    const msg = combo >= 2 ? `${praiseText} ${text} (x${combo})` : text;
+
     const floater = this.add.text(x, y, msg, {
       fontFamily: 'Fredoka, sans-serif',
-      fontSize: combo >= 3 ? '28px' : '22px',
+      fontSize: combo >= 3 ? '26px' : '20px',
       fontStyle: 'bold',
-      color,
+      color: combo >= 3 ? '#fbbf24' : '#ffffff',
       stroke: '#0f172a',
-      strokeThickness: 4,
+      strokeThickness: 5,
     }).setOrigin(0.5).setDepth(30);
 
     this.tweens.add({
       targets: floater,
-      y: y - 45,
+      y: y - 50,
+      scale: 1.1,
       alpha: 0,
       duration: 650,
-      ease: 'Quad.easeOut',
+      ease: 'Back.easeOut',
       onComplete: () => floater.destroy(),
     });
   }
 
   showRescueCelebration() {
-    const banner = this.add.text(this.canvasWidth / 2, 220, '🎉 SPRITE RESCUED! 🎉', {
+    const banner = this.add.text(this.canvasWidth / 2, 210, '⭐ STAR SPRITE RESCUED! ⭐', {
       fontFamily: 'Fredoka, sans-serif',
-      fontSize: '24px',
+      fontSize: '22px',
       fontStyle: 'bold',
-      color: '#fbbf24',
+      color: '#fef08a',
       stroke: '#451a03',
       strokeThickness: 5,
     }).setOrigin(0.5).setDepth(35).setScale(0.2);
@@ -710,15 +843,15 @@ export class BubbleShooterScene extends Phaser.Scene {
     this.tweens.add({
       targets: banner,
       scale: 1.1,
-      duration: 300,
+      duration: 280,
       ease: 'Back.easeOut',
       onComplete: () => {
         this.tweens.add({
           targets: banner,
           alpha: 0,
-          y: 190,
-          delay: 400,
-          duration: 300,
+          y: 180,
+          delay: 450,
+          duration: 320,
           onComplete: () => banner.destroy(),
         });
       },
@@ -729,7 +862,6 @@ export class BubbleShooterScene extends Phaser.Scene {
     const store = useGameStore.getState();
 
     if (isObjectiveCompleted) {
-      // Award final leftover shots bonus
       const finalScore = ScoreManager.calculateFinalScore(store.score, store.shotsRemaining);
       const stars = ScoreManager.calculateStars(finalScore, store.level.starThresholds);
       store.addScore(finalScore - store.score);
@@ -745,7 +877,6 @@ export class BubbleShooterScene extends Phaser.Scene {
       return;
     }
 
-    // Ready for next shot
     store.setGameStatus(GAME_STATUS.READY);
   }
 
@@ -760,7 +891,7 @@ export function createGameConfig(parentContainerId) {
     width: 480,
     height: 680,
     parent: parentContainerId,
-    backgroundColor: '#0f172a',
+    backgroundColor: '#0b1120',
     scale: {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,

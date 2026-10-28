@@ -40,3 +40,4 @@ export const GAME_CONSTANTS = {
     REMAINING_SHOT_BONUS: 50,
   }
 };
+

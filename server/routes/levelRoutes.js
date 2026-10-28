@@ -7,3 +7,4 @@ router.get('/', getLevels);
 router.get('/:id', getLevelById);
 
 export default router;
+

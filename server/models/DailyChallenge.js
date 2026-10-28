@@ -34,3 +34,4 @@ const dailyChallengeSchema = new mongoose.Schema({
 
 export const DailyChallenge = mongoose.model('DailyChallenge', dailyChallengeSchema);
 export default DailyChallenge;
+

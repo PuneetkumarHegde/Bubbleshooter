@@ -66,3 +66,4 @@ export async function completeDailyChallenge(req, res, next) {
     next(err);
   }
 }
+

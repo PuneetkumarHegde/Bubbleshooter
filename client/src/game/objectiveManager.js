@@ -78,3 +78,4 @@ export class ObjectiveManager {
     return { completed: false, progressText: '', progressPercent: 0 };
   }
 }
+

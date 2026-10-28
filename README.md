@@ -349,3 +349,4 @@ To verify the full suite of features:
 ## 18. Known Limitations & Future Roadmap
 - **Browser Autoplay Policy**: Web Audio API requires one user gesture (click or tap) before playing audio, as per modern browser security policies.
 - **PWA Push Notifications**: Can be expanded in future versions with Web Push protocol for daily streak reminders.
+

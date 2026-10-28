@@ -57,3 +57,4 @@ export class FloatingDetector {
     return floating;
   }
 }
+

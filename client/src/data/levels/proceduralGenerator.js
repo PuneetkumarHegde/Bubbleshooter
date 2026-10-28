@@ -118,3 +118,4 @@ export function generateDailyChallenge(dateString) {
   level.reward = { coins: 500, booster: 'rainbow' };
   return level;
 }
+

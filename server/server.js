@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { GAME_NAME, PORT } from './config/gameConfig.js';
 import { connectDB } from './config/db.js';
+import { seedInitialData } from './config/seedData.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 // Route imports
@@ -59,6 +60,7 @@ app.use(errorHandler);
 async function startServer() {
   try {
     await connectDB();
+    await seedInitialData();
     const server = app.listen(PORT, () => {
       console.log(`====================================================`);
       console.log(`🎮 [${GAME_NAME}] Server running on port ${PORT}`);
@@ -78,3 +80,4 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 export default app;
+

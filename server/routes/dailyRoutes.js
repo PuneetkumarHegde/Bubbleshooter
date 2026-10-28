@@ -8,3 +8,4 @@ router.get('/', getDailyChallenge);
 router.post('/complete', authenticateToken, completeDailyChallenge);
 
 export default router;
+

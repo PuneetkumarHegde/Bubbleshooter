@@ -8,3 +8,4 @@ router.get('/', getLeaderboard);
 router.get('/me', authenticateToken, getMyRank);
 
 export default router;
+

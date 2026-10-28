@@ -40,3 +40,4 @@ export async function getMyRank(req, res, next) {
     next(err);
   }
 }
+

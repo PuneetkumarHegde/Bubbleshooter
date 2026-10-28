@@ -40,3 +40,4 @@ export class ScoreManager {
     return 1; // 1 star minimum for level completion
   }
 }
+

@@ -10,3 +10,4 @@ router.get('/history', authenticateToken, getGameHistory);
 router.get('/:id', authenticateToken, getGameById);
 
 export default router;
+

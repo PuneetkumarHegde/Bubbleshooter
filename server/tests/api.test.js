@@ -135,3 +135,4 @@ test('Bubble Blast Adventure Server Integration Test Suite', async (t) => {
     assert.ok(true, 'Database disconnected cleanly');
   });
 });
+

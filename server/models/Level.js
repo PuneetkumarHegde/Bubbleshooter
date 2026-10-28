@@ -55,3 +55,4 @@ const levelSchema = new mongoose.Schema({
 
 export const Level = mongoose.model('Level', levelSchema);
 export default Level;
+

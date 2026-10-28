@@ -24,3 +24,4 @@ export async function getPlayerProgress(req, res, next) {
     next(err);
   }
 }
+

@@ -1,13 +1,14 @@
-// Procedural High-Fidelity Web Audio Engine for Bubble Blast Adventure
-// Generates responsive, zero-latency cartoon sound effects and upbeat arcade BGM.
+// Procedural High-Fidelity Web Audio & Haptic Engine for Bubble Blast Adventure
+// Generates responsive, zero-latency cartoon sound effects, color-pitched chimes, and upbeat arcade BGM.
 
 class AudioEngine {
   constructor() {
     this.ctx = null;
     this.soundEnabled = true;
     this.musicEnabled = true;
+    this.vibrationEnabled = true;
     this.sfxVolume = 0.7;
-    this.musicVolume = 0.35;
+    this.musicVolume = 0.32;
     this.bgmTimer = null;
     this.isBgmPlaying = false;
 
@@ -15,11 +16,11 @@ class AudioEngine {
     try {
       const savedSound = localStorage.getItem('bba_sound_enabled');
       const savedMusic = localStorage.getItem('bba_music_enabled');
+      const savedVib = localStorage.getItem('bba_vibration');
       if (savedSound !== null) this.soundEnabled = JSON.parse(savedSound);
       if (savedMusic !== null) this.musicEnabled = JSON.parse(savedMusic);
-    } catch (e) {
-      // fallback to defaults
-    }
+      if (savedVib !== null) this.vibrationEnabled = JSON.parse(savedVib);
+    } catch (e) {}
   }
 
   init() {
@@ -32,6 +33,15 @@ class AudioEngine {
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {});
     }
+  }
+
+  triggerHaptic(pattern = [25]) {
+    if (!this.vibrationEnabled) return;
+    try {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate(pattern);
+      }
+    } catch (e) {}
   }
 
   setSoundEnabled(enabled) {
@@ -88,6 +98,7 @@ class AudioEngine {
   }
 
   playLaunch() {
+    this.triggerHaptic([35]);
     if (!this.soundEnabled) return;
     this.init();
     if (!this.ctx) return;
@@ -95,7 +106,7 @@ class AudioEngine {
     const gain = this.ctx.createGain();
     osc.type = 'sine';
     osc.frequency.setValueAtTime(250, this.ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(650, this.ctx.currentTime + 0.12);
+    osc.frequency.exponentialRampToValueAtTime(680, this.ctx.currentTime + 0.12);
     gain.gain.setValueAtTime(this.sfxVolume * 0.45, this.ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.12);
     osc.connect(gain);
@@ -105,6 +116,7 @@ class AudioEngine {
   }
 
   playCollision() {
+    this.triggerHaptic([15]);
     if (!this.soundEnabled) return;
     this.init();
     if (!this.ctx) return;
@@ -121,15 +133,33 @@ class AudioEngine {
     osc.stop(this.ctx.currentTime + 0.08);
   }
 
-  playPop(pitchScale = 1.0) {
+  // Harmonic color-pitched bubble pop sound
+  playPop(pitchScale = 1.0, colorKey = null) {
+    this.triggerHaptic([20]);
     if (!this.soundEnabled) return;
     this.init();
     if (!this.ctx) return;
+
+    // Harmonic pentatonic pitch mapping per color
+    const colorNotes = {
+      red: 261.63,     // C4
+      blue: 293.66,    // D4
+      green: 329.63,   // E4
+      yellow: 392.00,  // G4
+      purple: 440.00,  // A4
+      orange: 523.25,  // C5
+      pink: 587.33,    // D5
+      cyan: 659.25,    // E5
+    };
+
+    const baseFreq = (colorKey && colorNotes[colorKey])
+      ? colorNotes[colorKey] * pitchScale
+      : 480 * Math.max(0.5, Math.min(2.5, pitchScale));
+
     const t = this.ctx.currentTime;
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
     osc.type = 'sine';
-    const baseFreq = 480 * Math.max(0.5, Math.min(2.5, pitchScale));
     osc.frequency.setValueAtTime(baseFreq, t);
     osc.frequency.exponentialRampToValueAtTime(baseFreq * 2.2, t + 0.09);
     gain.gain.setValueAtTime(this.sfxVolume * 0.5, t);
@@ -140,16 +170,17 @@ class AudioEngine {
     osc.stop(t + 0.09);
   }
 
-  playMultiPop(count = 3) {
+  playMultiPop(count = 3, colorKey = null) {
     if (!this.soundEnabled) return;
     for (let i = 0; i < Math.min(count, 8); i++) {
       setTimeout(() => {
-        this.playPop(1.0 + i * 0.15);
+        this.playPop(1.0 + i * 0.12, colorKey);
       }, i * 35);
     }
   }
 
   playFloatingFall() {
+    this.triggerHaptic([20, 20]);
     if (!this.soundEnabled) return;
     this.init();
     if (!this.ctx) return;
@@ -168,6 +199,7 @@ class AudioEngine {
   }
 
   playCombo(comboCount = 2) {
+    this.triggerHaptic([30, 40]);
     if (!this.soundEnabled) return;
     this.init();
     if (!this.ctx) return;
@@ -190,12 +222,13 @@ class AudioEngine {
   }
 
   playBomb() {
+    this.triggerHaptic([80, 50, 120]);
     if (!this.soundEnabled) return;
     this.init();
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
-    // White noise explosion
-    const bufferSize = this.ctx.sampleRate * 0.35;
+    // White noise explosion with lowpass sweep
+    const bufferSize = this.ctx.sampleRate * 0.4;
     const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
     const output = buffer.getChannelData(0);
     for (let i = 0; i < bufferSize; i++) {
@@ -206,22 +239,23 @@ class AudioEngine {
 
     const filter = this.ctx.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(800, t);
-    filter.frequency.exponentialRampToValueAtTime(80, t + 0.35);
+    filter.frequency.setValueAtTime(900, t);
+    filter.frequency.exponentialRampToValueAtTime(70, t + 0.4);
 
     const gain = this.ctx.createGain();
-    gain.gain.setValueAtTime(this.sfxVolume * 0.8, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+    gain.gain.setValueAtTime(this.sfxVolume * 0.85, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
 
     whiteNoise.connect(filter);
     filter.connect(gain);
     gain.connect(this.ctx.destination);
 
     whiteNoise.start(t);
-    whiteNoise.stop(t + 0.35);
+    whiteNoise.stop(t + 0.4);
   }
 
   playRainbow() {
+    this.triggerHaptic([30, 30, 30, 40]);
     if (!this.soundEnabled) return;
     const arpeggio = [523.25, 659.25, 783.99, 1046.5];
     arpeggio.forEach((f, idx) => {
@@ -243,6 +277,7 @@ class AudioEngine {
   }
 
   playRescue() {
+    this.triggerHaptic([40, 40, 80]);
     if (!this.soundEnabled) return;
     const notes = [440, 554.37, 659.25, 880];
     notes.forEach((f, idx) => {
@@ -264,6 +299,7 @@ class AudioEngine {
   }
 
   playBooster() {
+    this.triggerHaptic([40]);
     if (!this.soundEnabled) return;
     this.init();
     if (!this.ctx) return;
@@ -272,7 +308,7 @@ class AudioEngine {
     const gain = this.ctx.createGain();
     osc.type = 'sine';
     osc.frequency.setValueAtTime(300, t);
-    osc.frequency.exponentialRampToValueAtTime(900, t + 0.2);
+    osc.frequency.exponentialRampToValueAtTime(950, t + 0.2);
     gain.gain.setValueAtTime(this.sfxVolume * 0.5, t);
     gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
     osc.connect(gain);
@@ -282,6 +318,7 @@ class AudioEngine {
   }
 
   playStar(starNum = 1) {
+    this.triggerHaptic([50]);
     if (!this.soundEnabled) return;
     this.init();
     if (!this.ctx) return;
@@ -302,6 +339,7 @@ class AudioEngine {
   }
 
   playLevelComplete() {
+    this.triggerHaptic([60, 40, 100]);
     if (!this.soundEnabled) return;
     const fanFare = [
       { f: 523.25, d: 0.12 },
@@ -330,6 +368,7 @@ class AudioEngine {
   }
 
   playLevelFailed() {
+    this.triggerHaptic([80, 80]);
     if (!this.soundEnabled) return;
     const sadNotes = [440, 392, 349, 293.66];
     let offset = 0;
@@ -352,56 +391,74 @@ class AudioEngine {
     });
   }
 
-  playHighScore() {
-    this.playLevelComplete();
-    setTimeout(() => {
-      this.playRainbow();
-    }, 600);
-  }
-
   startBGM() {
     if (!this.musicEnabled || this.isBgmPlaying) return;
     this.init();
     if (!this.ctx) return;
     this.isBgmPlaying = true;
 
-    // Upbeat Cartoon Melodic Loop
+    // Upbeat Cartoon Melodic Chords Loop
     const melody = [
-      261.63, 329.63, 392.00, 523.25, 392.00, 329.63,
-      293.66, 369.99, 440.00, 587.33, 440.00, 369.99,
-      329.63, 392.00, 493.88, 659.25, 493.88, 392.00,
-      261.63, 329.63, 392.00, 523.25, 659.25, 523.25,
+      { f: 261.63, b: 130.81 },
+      { f: 329.63, b: 130.81 },
+      { f: 392.00, b: 130.81 },
+      { f: 523.25, b: 130.81 },
+      { f: 392.00, b: 146.83 },
+      { f: 329.63, b: 146.83 },
+      { f: 293.66, b: 146.83 },
+      { f: 369.99, b: 146.83 },
+      { f: 440.00, b: 164.81 },
+      { f: 587.33, b: 164.81 },
+      { f: 440.00, b: 164.81 },
+      { f: 369.99, b: 164.81 },
+      { f: 329.63, b: 174.61 },
+      { f: 392.00, b: 174.61 },
+      { f: 493.88, b: 174.61 },
+      { f: 659.25, b: 174.61 },
     ];
     let step = 0;
 
     const playNextNote = () => {
       if (!this.musicEnabled || !this.isBgmPlaying || !this.ctx) return;
-      const freq = melody[step % melody.length];
+      const note = melody[step % melody.length];
       const t = this.ctx.currentTime;
 
-      // Soft synth bell
+      // Soft synth bell melody
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, t);
+      osc.frequency.setValueAtTime(note.f, t);
 
-      // Low pass to keep music cozy and in background
+      // Low pass to keep melody silky smooth in background
       const filter = this.ctx.createBiquadFilter();
       filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(1400, t);
+      filter.frequency.setValueAtTime(1200, t);
 
-      gain.gain.setValueAtTime(this.musicVolume * 0.2, t);
+      gain.gain.setValueAtTime(this.musicVolume * 0.22, t);
       gain.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
 
       osc.connect(filter);
       filter.connect(gain);
       gain.connect(this.ctx.destination);
-
       osc.start(t);
       osc.stop(t + 0.28);
 
+      // Warm bass pulse every 2 steps
+      if (step % 2 === 0) {
+        const bassOsc = this.ctx.createOscillator();
+        const bassGain = this.ctx.createGain();
+        bassOsc.type = 'triangle';
+        bassOsc.frequency.setValueAtTime(note.b, t);
+        bassGain.gain.setValueAtTime(this.musicVolume * 0.28, t);
+        bassGain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+        bassOsc.connect(bassGain);
+        bassGain.connect(this.ctx.destination);
+        bassOsc.start(t);
+        bassOsc.stop(t + 0.4);
+      }
+
       step++;
-      this.bgmTimer = setTimeout(playNextNote, 300);
+      this.bgmTimer = setTimeout(playNextNote, 280);
     };
 
     playNextNote();

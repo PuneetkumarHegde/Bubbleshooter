@@ -55,3 +55,4 @@ export default function LevelFailedModal({ onRetry, onUseBooster, onLevelSelect 
     </div>
   );
 }
+
