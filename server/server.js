@@ -24,22 +24,60 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Basic health check endpoints
-app.get('/', (req, res) => {
-  res.json({
-    game: GAME_NAME,
-    status: 'online',
-    version: '1.0.0',
-    description: `Official backend API for ${GAME_NAME}`,
-    timestamp: new Date().toISOString(),
-  });
+// API Overview helper
+const getApiDirectory = () => ({
+  game: GAME_NAME,
+  status: 'online',
+  version: '1.0.0',
+  description: `Official backend API services for ${GAME_NAME}`,
+  frontendUrl: 'http://localhost:5173',
+  documentation: {
+    health: 'GET /api/health',
+    authentication: {
+      register: 'POST /api/auth/register',
+      login: 'POST /api/auth/login',
+      currentUser: 'GET /api/auth/me (Bearer Token Required)',
+      logout: 'POST /api/auth/logout',
+    },
+    levels: {
+      list: 'GET /api/levels',
+      detail: 'GET /api/levels/:id',
+    },
+    gameSessions: {
+      start: 'POST /api/games/start (Bearer Token Required)',
+      complete: 'POST /api/games/complete (Anti-Cheat Validated)',
+      history: 'GET /api/games/history',
+    },
+    leaderboards: {
+      global: 'GET /api/leaderboard?timeframe=all',
+      weekly: 'GET /api/leaderboard?timeframe=weekly',
+      myRank: 'GET /api/leaderboard/me (Bearer Token Required)',
+    },
+    achievements: {
+      all: 'GET /api/achievements',
+      userProgress: 'GET /api/achievements/me (Bearer Token Required)',
+    },
+    dailyChallenge: {
+      today: 'GET /api/daily-challenge',
+      complete: 'POST /api/daily-challenge/complete',
+    },
+    player: {
+      progress: 'GET /api/player/progress (Bearer Token Required)',
+    },
+  },
+  timestamp: new Date().toISOString(),
+});
+
+// Root & /api Index Handlers
+app.get(['/', '/api', '/api/'], (req, res) => {
+  res.json(getApiDirectory());
 });
 
 app.get('/api/health', (req, res) => {
   res.json({
     game: GAME_NAME,
     status: 'healthy',
-    uptime: process.uptime(),
+    uptime: `${Math.round(process.uptime())}s`,
     timestamp: new Date().toISOString(),
   });
 });
@@ -52,6 +90,15 @@ app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/achievements', achievementRoutes);
 app.use('/api/daily-challenge', dailyRoutes);
 app.use('/api/player', playerRoutes);
+
+// Catch-all 404 for undefined routes
+app.use('*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: `Route ${req.originalUrl} not found on this game server.`,
+    availableEndpoints: '/api',
+  });
+});
 
 // Error Handling Middleware
 app.use(errorHandler);
@@ -80,4 +127,3 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 export default app;
-
