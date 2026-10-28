@@ -51,6 +51,9 @@ export class BubbleShooterScene extends Phaser.Scene {
       if (state.currentBubble !== prevState.currentBubble) {
         this.updateCurrentBubbleSprite();
       }
+      if (state.nextBubble !== prevState.nextBubble) {
+        this.updateNextBubbleSprite();
+      }
       if (state.shotsRemaining <= 4 && prevState.shotsRemaining > 4) {
         this.setCompanionReaction('nervous');
       }
@@ -235,9 +238,64 @@ export class BubbleShooterScene extends Phaser.Scene {
     this.launcherArrow.setOrigin(0.5, 0.72);
     this.launcherArrow.setStrokeStyle(2, 0xa5b4fc);
 
-    // Loaded bubble in launcher
+    // Loaded bubble in launcher (Interactive: click to swap)
     this.currentBubbleSprite = this.add.sprite(this.launcherX, this.launcherY, 'bubble_blue').setDepth(10);
     this.currentBubbleSprite.setScale(1.05);
+    this.currentBubbleSprite.setInteractive({ useHandCursor: true });
+    this.currentBubbleSprite.on('pointerdown', (pointer, localX, localY, event) => {
+      if (event) event.stopPropagation();
+      this.triggerBubbleSwap();
+    });
+
+    // --- NEXT BUBBLE QUEUE ON CANVAS ---
+    this.nextBubbleX = 148;
+    this.nextBubbleY = this.launcherY + 10;
+
+    // Next Bubble Pedestal
+    this.nextBubbleRing = this.add.circle(this.nextBubbleX, this.nextBubbleY, 26, 0x1e1b4b, 0.85).setDepth(7);
+    this.nextBubbleRing.setStrokeStyle(2, 0x6366f1, 0.85);
+
+    this.nextBubbleBase = this.add.circle(this.nextBubbleX, this.nextBubbleY, 21, 0x0f172a).setDepth(8);
+    this.nextBubbleBase.setStrokeStyle(1.5, 0x818cf8);
+
+    this.nextLabel = this.add.text(this.nextBubbleX, this.nextBubbleY + 28, 'NEXT', {
+      fontSize: '10px',
+      fontFamily: 'Fredoka, sans-serif',
+      fontStyle: 'bold',
+      color: '#a5b4fc',
+    }).setOrigin(0.5).setDepth(9);
+
+    // Next Bubble Sprite (Interactive: click to swap)
+    this.nextBubbleSprite = this.add.sprite(this.nextBubbleX, this.nextBubbleY, 'bubble_blue').setDepth(10);
+    this.nextBubbleSprite.setScale(0.88);
+    this.nextBubbleSprite.setInteractive({ useHandCursor: true });
+    this.nextBubbleSprite.on('pointerdown', (pointer, localX, localY, event) => {
+      if (event) event.stopPropagation();
+      this.triggerBubbleSwap();
+    });
+
+    // Interactive Swap Button Badge between Next & Launcher
+    const swapX = 194;
+    const swapY = this.launcherY + 6;
+    this.swapButtonBg = this.add.circle(swapX, swapY, 13, 0x312e81, 0.95).setDepth(11);
+    this.swapButtonBg.setStrokeStyle(2, 0xa5b4fc);
+    this.swapButtonText = this.add.text(swapX, swapY, '⇄', {
+      fontSize: '15px',
+      color: '#ffffff',
+      fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(12);
+
+    this.swapButtonBg.setInteractive({ useHandCursor: true });
+    this.swapButtonBg.on('pointerdown', (pointer, localX, localY, event) => {
+      if (event) event.stopPropagation();
+      this.triggerBubbleSwap();
+    });
+    this.swapButtonBg.on('pointerover', () => {
+      this.tweens.add({ targets: [this.swapButtonBg, this.swapButtonText], scale: 1.2, duration: 100 });
+    });
+    this.swapButtonBg.on('pointerout', () => {
+      this.tweens.add({ targets: [this.swapButtonBg, this.swapButtonText], scale: 1.0, duration: 100 });
+    });
 
     // Helper Character Avatar (Sparky the Bubble Drake)
     this.sparkyContainer = this.add.container(48, this.canvasHeight - 48).setDepth(12);
@@ -348,6 +406,7 @@ export class BubbleShooterScene extends Phaser.Scene {
     }
 
     this.updateCurrentBubbleSprite();
+    this.updateNextBubbleSprite();
   }
 
   createBubbleSprite(r, c, cell) {
@@ -390,6 +449,68 @@ export class BubbleShooterScene extends Phaser.Scene {
     });
   }
 
+  updateNextBubbleSprite() {
+    const store = useGameStore.getState();
+    const next = store.nextBubble;
+    if (!next || !this.nextBubbleSprite) return;
+
+    let textureKey = `bubble_${next.color}`;
+    if (next.special === 'bomb') textureKey = 'bubble_bomb';
+    else if (next.special === 'rainbow') textureKey = 'bubble_rainbow';
+
+    this.nextBubbleSprite.setTexture(textureKey);
+    this.nextBubbleSprite.setScale(0.7);
+    this.tweens.add({
+      targets: this.nextBubbleSprite,
+      scale: 0.88,
+      duration: 180,
+      ease: 'Back.easeOut',
+    });
+  }
+
+  triggerBubbleSwap() {
+    const store = useGameStore.getState();
+    if (store.gameStatus !== GAME_STATUS.READY && store.gameStatus !== GAME_STATUS.AIMING) return;
+    if (this.movingBubble) return; // Cannot swap while bubble is in flight
+
+    soundManager.playAim();
+
+    // Curved swap tween for both bubbles
+    this.tweens.add({
+      targets: this.currentBubbleSprite,
+      x: this.nextBubbleX,
+      y: this.nextBubbleY,
+      scale: 0.88,
+      duration: 160,
+      ease: 'Back.easeIn',
+    });
+
+    this.tweens.add({
+      targets: this.nextBubbleSprite,
+      x: this.launcherX,
+      y: this.launcherY,
+      scale: 1.05,
+      duration: 160,
+      ease: 'Back.easeIn',
+      onComplete: () => {
+        store.swapBubbles();
+        this.currentBubbleSprite.setPosition(this.launcherX, this.launcherY).setScale(1.05);
+        this.nextBubbleSprite.setPosition(this.nextBubbleX, this.nextBubbleY).setScale(0.88);
+        this.updateCurrentBubbleSprite();
+        this.updateNextBubbleSprite();
+      },
+    });
+
+    if (this.swapButtonText) {
+      this.tweens.add({
+        targets: this.swapButtonText,
+        angle: this.swapButtonText.angle + 180,
+        duration: 200,
+        ease: 'Quad.easeOut',
+      });
+    }
+  }
+
   setupInputHandlers() {
     // Mouse and touch aiming
     this.input.on('pointermove', (pointer) => {
@@ -418,8 +539,7 @@ export class BubbleShooterScene extends Phaser.Scene {
 
     // Keyboard Shortcuts
     this.input.keyboard.on('keydown-SPACE', () => {
-      useGameStore.getState().swapBubbles();
-      soundManager.playAim();
+      this.triggerBubbleSwap();
     });
 
     this.input.keyboard.on('keydown-U', () => {
@@ -892,6 +1012,9 @@ export class BubbleShooterScene extends Phaser.Scene {
     if (this.currentBubbleSprite) {
       this.currentBubbleSprite.setVisible(true);
       this.updateCurrentBubbleSprite();
+    }
+    if (this.nextBubbleSprite) {
+      this.updateNextBubbleSprite();
     }
 
     store.setGameStatus(GAME_STATUS.READY);

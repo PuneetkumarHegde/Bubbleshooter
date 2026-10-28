@@ -146,30 +146,47 @@ export default function GameHUD({ onPause }) {
         </div>
 
         {/* Current & Next Bubble Queue Swapper */}
-        <div className="flex items-center gap-2 bg-slate-900/90 px-3 py-1.5 rounded-2xl border border-slate-800 shadow-md">
-          <div className="flex items-center gap-2">
-            <div className="text-center">
-              <span className="text-[9px] uppercase tracking-wider text-slate-400 block font-bold">Next</span>
-              <div
-                className="w-7 h-7 rounded-full shadow-md border-2 border-white/40 transform transition-transform"
-                style={{
-                  backgroundColor: nextBubble?.color === 'red' ? '#ef4444' :
-                    nextBubble?.color === 'blue' ? '#3b82f6' :
-                    nextBubble?.color === 'green' ? '#10b981' :
-                    nextBubble?.color === 'yellow' ? '#f59e0b' :
-                    nextBubble?.color === 'purple' ? '#8b5cf6' :
-                    nextBubble?.color === 'orange' ? '#f97316' :
-                    nextBubble?.color === 'pink' ? '#ec4899' : '#06b6d4'
-                }}
-              />
-            </div>
-            <button
-              onClick={handleSwap}
-              title="Swap Current & Next Bubble (Spacebar)"
-              className="p-1.5 bg-slate-800 hover:bg-indigo-600 rounded-lg text-slate-300 hover:text-white transition-all transform hover:scale-110 active:scale-95 cursor-pointer shadow-sm"
-            >
-              <Repeat className="w-4 h-4" />
-            </button>
+        <div className="flex items-center gap-2.5 bg-slate-900/90 px-3 py-1.5 rounded-2xl border border-slate-800 shadow-md">
+          {/* Current Loaded Bubble */}
+          <div className="text-center">
+            <span className="text-[9px] uppercase tracking-wider text-indigo-300 block font-bold leading-tight">Ready</span>
+            <div
+              className="w-7 h-7 rounded-full shadow-md border-2 border-white/60 transform transition-transform mt-0.5"
+              style={{
+                backgroundColor: currentBubble?.color === 'red' ? '#ef4444' :
+                  currentBubble?.color === 'blue' ? '#3b82f6' :
+                  currentBubble?.color === 'green' ? '#10b981' :
+                  currentBubble?.color === 'yellow' ? '#f59e0b' :
+                  currentBubble?.color === 'purple' ? '#8b5cf6' :
+                  currentBubble?.color === 'orange' ? '#f97316' :
+                  currentBubble?.color === 'pink' ? '#ec4899' : '#06b6d4'
+              }}
+            />
+          </div>
+
+          <button
+            onClick={handleSwap}
+            title="Swap Ready & Next Bubble (Spacebar / Click on canvas)"
+            className="p-1.5 bg-slate-800 hover:bg-indigo-600 rounded-lg text-slate-300 hover:text-white transition-all transform hover:scale-110 active:scale-95 cursor-pointer shadow-sm"
+          >
+            <Repeat className="w-4 h-4" />
+          </button>
+
+          {/* Next Queued Bubble */}
+          <div className="text-center">
+            <span className="text-[9px] uppercase tracking-wider text-slate-400 block font-bold leading-tight">Next</span>
+            <div
+              className="w-7 h-7 rounded-full shadow-md border-2 border-white/40 transform transition-transform mt-0.5"
+              style={{
+                backgroundColor: nextBubble?.color === 'red' ? '#ef4444' :
+                  nextBubble?.color === 'blue' ? '#3b82f6' :
+                  nextBubble?.color === 'green' ? '#10b981' :
+                  nextBubble?.color === 'yellow' ? '#f59e0b' :
+                  nextBubble?.color === 'purple' ? '#8b5cf6' :
+                  nextBubble?.color === 'orange' ? '#f97316' :
+                  nextBubble?.color === 'pink' ? '#ec4899' : '#06b6d4'
+              }}
+            />
           </div>
         </div>
       </div>
