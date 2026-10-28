@@ -5,22 +5,30 @@ import { generateProceduralLevel, generateDailyChallenge } from './proceduralGen
 // Helper to build rows easily
 function createBoard(pattern, colorMap, specialMap = {}) {
   return pattern.map((rowStr, r) => {
+    const maxCols = r % 2 === 0 ? GAME_CONSTANTS.GRID_COLS : GAME_CONSTANTS.GRID_COLS - 1;
     const cols = rowStr.trim().split(/\s+/);
-    return cols.map((char, c) => {
-      if (char === '.' || char === '_') return null;
-      const color = colorMap[char] || 'blue';
-      const isRescue = char === 'R';
-      const isTarget = char === 'T';
-      const special = specialMap[`${r},${c}`] || (char === 'B' ? 'bomb' : char === 'W' ? 'rainbow' : null);
-      return {
-        row: r,
-        col: c,
-        color: isRescue ? 'yellow' : isTarget ? 'purple' : color,
-        isRescue,
-        isTarget,
-        special,
-      };
-    }).filter(cell => cell !== null);
+    const row = [];
+    for (let c = 0; c < maxCols; c++) {
+      const char = cols[c];
+      if (!char || char === '.' || char === '_') {
+        row.push(null);
+      } else {
+        const color = colorMap[char] || 'blue';
+        const isRescue = char === 'R';
+        const isTarget = char === 'T';
+        const special = specialMap[`${r},${c}`] || (char === 'B' ? 'bomb' : char === 'W' ? 'rainbow' : null);
+        row.push({
+          row: r,
+          col: c,
+          color: isRescue ? 'yellow' : isTarget ? 'purple' : color,
+          isRescue,
+          isTarget,
+          special,
+          isPopped: false,
+        });
+      }
+    }
+    return row;
   });
 }
 

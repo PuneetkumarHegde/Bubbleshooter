@@ -178,3 +178,4 @@ export async function seedInitialData() {
     console.warn('[Seeder] Seeding warning:', err.message);
   }
 }
+

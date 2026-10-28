@@ -93,18 +93,49 @@ export class HexGrid {
   }
 
   // Find optimal empty adjacent slot to attach the collided bubble
-  findSnapPosition(bubbleX, bubbleY, board) {
-    // If reached ceiling, snap directly to row 0
-    if (bubbleY <= this.offsetY + this.radius * 0.5) {
-      const isOdd = 0;
-      const colX = bubbleX - this.offsetX;
-      let col = Math.round(colX / this.diameter);
-      col = Math.max(0, Math.min(this.cols - 1, col));
-      if (!board[0]) board[0] = [];
-      if (!board[0][col]) return { row: 0, col };
+  findSnapPosition(bubbleX, bubbleY, board, hitTarget = null) {
+    // 1. If reached ceiling, snap directly to closest empty slot in row 0
+    if (bubbleY <= this.offsetY + this.radius * 0.75) {
+      let bestCol = 0;
+      let minDx = Infinity;
+      for (let c = 0; c < this.cols; c++) {
+        const isOccupied = board[0] && board[0][c] && !board[0][c].isPopped;
+        if (!isOccupied) {
+          const { x } = this.gridToPixel(0, c);
+          const dx = Math.abs(bubbleX - x);
+          if (dx < minDx) {
+            minDx = dx;
+            bestCol = c;
+          }
+        }
+      }
+      return { row: 0, col: bestCol };
     }
 
-    // Otherwise find closest empty neighbor to current coordinates
+    // 2. If collided with a specific target bubble, check its empty neighbors first
+    if (hitTarget && hitTarget.targetRow !== undefined && hitTarget.targetCol !== undefined) {
+      const neighbors = this.getNeighbors(hitTarget.targetRow, hitTarget.targetCol);
+      let bestNeighbor = null;
+      let minDistance = Infinity;
+
+      for (const n of neighbors) {
+        const isOccupied = board[n.row] && board[n.row][n.col] && !board[n.row][n.col].isPopped;
+        if (!isOccupied) {
+          const { x, y } = this.gridToPixel(n.row, n.col);
+          const dist = Math.hypot(bubbleX - x, bubbleY - y);
+          if (dist < minDistance) {
+            minDistance = dist;
+            bestNeighbor = { row: n.row, col: n.col };
+          }
+        }
+      }
+
+      if (bestNeighbor) {
+        return bestNeighbor;
+      }
+    }
+
+    // 3. Search all empty valid anchor slots on board closest to collision coordinates
     let bestSlot = null;
     let minDistance = Infinity;
 
@@ -112,9 +143,8 @@ export class HexGrid {
       const isOdd = r % 2 !== 0;
       const maxCols = isOdd ? this.cols - 1 : this.cols;
       for (let c = 0; c < maxCols; c++) {
-        const occupied = board[r] && board[r][c] && !board[r][c].isPopped;
-        if (!occupied) {
-          // Check if slot has at least one neighbor or is top row (valid anchor)
+        const isOccupied = board[r] && board[r][c] && !board[r][c].isPopped;
+        if (!isOccupied) {
           const neighbors = this.getNeighbors(r, c);
           const hasNeighbor = r === 0 || neighbors.some(n => board[n.row] && board[n.row][n.col] && !board[n.row][n.col].isPopped);
           if (hasNeighbor) {
@@ -131,8 +161,18 @@ export class HexGrid {
 
     if (bestSlot) return bestSlot;
 
-    // Fallback directly to closest grid cell
-    return this.pixelToGrid(bubbleX, bubbleY);
+    // 4. Absolute fallback: Return first unoccupied slot closest to bubble
+    for (let r = 0; r < this.rows; r++) {
+      const isOdd = r % 2 !== 0;
+      const maxCols = isOdd ? this.cols - 1 : this.cols;
+      for (let c = 0; c < maxCols; c++) {
+        if (!board[r] || !board[r][c] || board[r][c].isPopped) {
+          return { row: r, col: c };
+        }
+      }
+    }
+
+    return { row: 0, col: 0 };
   }
 }
 

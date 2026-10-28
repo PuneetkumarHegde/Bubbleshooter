@@ -537,6 +537,7 @@ export class BubbleShooterScene extends Phaser.Scene {
     if (current.special === 'bomb') textureKey = 'bubble_bomb';
     else if (current.special === 'rainbow') textureKey = 'bubble_rainbow';
 
+    // The current bubble takes flight with its exact color
     this.movingBubble = {
       sprite: this.add.sprite(this.launcherX, this.launcherY, textureKey).setDepth(15),
       x: this.launcherX,
@@ -546,6 +547,11 @@ export class BubbleShooterScene extends Phaser.Scene {
       color: current.color,
       special: current.special,
     };
+
+    // Hide launcher bubble while current shot is in flight
+    if (this.currentBubbleSprite) {
+      this.currentBubbleSprite.setVisible(false);
+    }
 
     soundManager.playLaunch();
 
@@ -557,16 +563,6 @@ export class BubbleShooterScene extends Phaser.Scene {
       yoyo: true,
       ease: 'Quad.easeInOut',
     });
-
-    // Advance queue
-    const colors = store.level.colors || ['red', 'blue', 'green'];
-    const nextGenerated = colors[Math.floor(Math.random() * colors.length)];
-    useGameStore.setState({
-      currentBubble: store.nextBubble,
-      nextBubble: { color: nextGenerated, special: null },
-      activeBooster: null,
-    });
-    this.updateCurrentBubbleSprite();
   }
 
   update(time, delta) {
@@ -598,17 +594,24 @@ export class BubbleShooterScene extends Phaser.Scene {
     const hitCeiling = mb.y <= this.hexGrid.offsetY + radius * 0.5;
 
     if (colCheck.hit || hitCeiling) {
-      this.resolveCollision(mb);
+      this.resolveCollision(mb, colCheck.hit ? colCheck : null);
       this.movingBubble = null;
     }
   }
 
-  resolveCollision(mb) {
+  resolveCollision(mb, hitTarget = null) {
     const store = useGameStore.getState();
     store.setGameStatus(GAME_STATUS.RESOLVING);
 
-    const slot = this.hexGrid.findSnapPosition(mb.x, mb.y, store.board);
+    const slot = this.hexGrid.findSnapPosition(mb.x, mb.y, store.board, hitTarget);
     mb.sprite.destroy();
+
+    // Destroy any existing sprite at that slot before placing the new bubble
+    const key = `${slot.row},${slot.col}`;
+    if (this.bubbleSprites.has(key)) {
+      this.bubbleSprites.get(key).destroy();
+      this.bubbleSprites.delete(key);
+    }
 
     const board = store.board;
     if (!board[slot.row]) board[slot.row] = [];
@@ -875,6 +878,20 @@ export class BubbleShooterScene extends Phaser.Scene {
       store.setGameStatus(GAME_STATUS.LEVEL_FAILED);
       soundManager.playLevelFailed();
       return;
+    }
+
+    // Advance queue now that the shot has safely resolved
+    const colors = store.level?.colors || ['red', 'blue', 'green'];
+    const nextGenerated = colors[Math.floor(Math.random() * colors.length)];
+    useGameStore.setState({
+      currentBubble: store.nextBubble,
+      nextBubble: { color: nextGenerated, special: null },
+      activeBooster: null,
+    });
+
+    if (this.currentBubbleSprite) {
+      this.currentBubbleSprite.setVisible(true);
+      this.updateCurrentBubbleSprite();
     }
 
     store.setGameStatus(GAME_STATUS.READY);
