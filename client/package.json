@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "axios": "^1.21.0",
+    "bubble-blast-adventure": "file:..",
     "canvas-confetti": "^1.9.4",
     "lucide-react": "^1.63.0",
     "phaser": "^4.2.1",
